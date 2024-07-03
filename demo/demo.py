@@ -167,6 +167,9 @@ def main(
         output_pth=False,
         threshold=0.45
     ):
+
+    print("Configuring...")
+
     assert osp.abspath(image_dir) != osp.abspath(output_dir)
     os.makedirs(output_dir, exist_ok=True)
 
@@ -181,11 +184,15 @@ def main(
     augs = utils.build_augmentation(config, False)
     augmentations = T.AugmentationList(augs) 
 
+    print("Building model...")
+
     # building models
     model = Trainer.build_model(config).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device)['model'])
     model.eval()
     model = model.to(device)
+
+    print("Running inference...")
 
     if category_space is not None:
         category_space = torch.load(category_space)
@@ -196,7 +203,11 @@ def main(
     if 'mini soccer' in label_names: # for YCB
         label_names = list_replace(label_names, old='mini soccer', new='ball')
 
+    print("Label names:", label_names)
+
     for img_file in glob(osp.join(image_dir, '*')):
+        print("Processing", img_file)
+
         base_filename = osp.splitext(osp.basename(img_file))[0]
 
         dataset_dict = {}
@@ -209,10 +220,14 @@ def main(
 
         batched_inputs = [dataset_dict]
 
+        print("Inferencing...")
+
         output = model(batched_inputs)[0]
         output['label_names'] = model.label_names
         if output_pth:
             torch.save(output, osp.join(output_dir, base_filename + '.pth'))
+
+        print("Visualizing...")
 
         # visualize output
         instances = output['instances']
@@ -255,8 +270,10 @@ def main(
             pred_classes = pred_classes[indexes]
         colors = assign_colors(pred_classes, label_names, seed=4)
         output = to_pil_image(draw_bounding_boxes(torch.as_tensor(image).permute(2, 0, 1), boxes, labels=[label_names[cid] for cid in pred_classes.tolist()], colors=colors))
-        output.save(osp.join(output_dir, base_filename + '.out.jpg'))
 
+        print("Saving output...")
+
+        output.save(osp.join(output_dir, base_filename + '.out.jpg'))
 
 if __name__ == "__main__":
     fire.Fire(main)
